@@ -1,16 +1,20 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { PulseLoader } from "react-spinners";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 const Quiz = () => {
     const [quizzes, setQuizzes] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [selectedAnswer, setSelectedAnswer] = useState({});
+    const [userAnswers, setUserAnswers] = useState({});
+    const navigate = useNavigate();
 
     useEffect(() => {
         const fetchQuizzes = async () => {
             try {
                 const quizreq = await fetch(
-                    "https://opentdb.com/api.php?amount=5"
+                    "https://opentdb.com/api.php?amount=3"
                 );
                 const res = await quizreq.json();
 
@@ -22,8 +26,6 @@ const Quiz = () => {
                         quiz.correct_answer
                     );
 
-                    // Combine all answers
-                    // const allAnswers = [...decodedIncorrect, decodedCorrect];
                     const allAnswers = [
                         ...decodedIncorrect.map((answer) => ({
                             answer,
@@ -32,13 +34,12 @@ const Quiz = () => {
                         { answer: decodedCorrect, isCorrect: true },
                     ];
 
-                    // Shuffle answers using Fisher-Yates Shuffle
                     fisherYatesShuffle(allAnswers);
 
                     return {
                         ...quiz,
                         question: decodedQuestion,
-                        all_answers: allAnswers, // Add the shuffled answers
+                        all_answers: allAnswers,
                     };
                 });
 
@@ -52,48 +53,95 @@ const Quiz = () => {
         fetchQuizzes();
     }, []);
 
-    // Fisher-Yates Shuffle function
     const fisherYatesShuffle = (array) => {
         for (let i = array.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
-            [array[i], array[j]] = [array[j], array[i]]; // Swap elements
+            [array[i], array[j]] = [array[j], array[i]];
         }
     };
 
-    // Helper function to decode HTML entities
     const decodeHtmlEntities = (text) => {
         const parser = new DOMParser();
-        const decodedString =
-            parser.parseFromString(text, "text/html").body.textContent || "";
-        return decodedString;
+        return parser.parseFromString(text, "text/html").body.textContent || "";
+    };
+
+    const handleAnswerSelect = (quizIndex, answer) => {
+        setUserAnswers((prevAnswers) => ({
+            ...prevAnswers,
+            [quizIndex]: answer,
+        }));
+    };
+
+    const handleSubmit = () => {
+        const allQuestionsAnswered =
+            quizzes.length === Object.keys(userAnswers).length;
+
+        if (allQuestionsAnswered) {
+            navigate("/review", { state: { quizzes, userAnswers } });
+        } else {
+            toast.error("Please answer all questions before submitting.", {
+                position: "top-center",
+                autoClose: 3000, // Closes after 3 seconds
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+                progress: undefined,
+                theme: "colored",
+            });
+        }
     };
 
     return (
         <div className="flex flex-col items-center justify-center min-h-screen bg-purple-800 text-white p-3 text-lg font-semibold">
+            <ToastContainer />
+
             {loading ? (
                 <>
                     <PulseLoader color="white" />
-                    <p>loading</p>
+                    <p className="mt-3">Loading quizzes...</p>
                 </>
             ) : (
-                quizzes.map((quiz, index) => (
-                    <form
-                        key={index}
-                        className="flex flex-col items-center mb-5 p-4 border rounded-lg bg-purple-700 shadow-md w-[90vw]"
-                    >
-                        <p className="mb-3 text-center">{quiz.question}</p>
-                        <div className="flex flex-wrap justify-center gap-3">
-                            {quiz.all_answers.map((answerObj, answerIndex) => (
-                                <button
-                                    key={answerIndex}
-                                    className={`px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-md shadow `}
-                                >
-                                    {answerObj.answer}
-                                </button>
-                            ))}
+                <div>
+                    {quizzes.map((quiz, index) => (
+                        <div
+                            key={index}
+                            className="flex flex-col items-center mb-5 p-4 border rounded-lg bg-purple-700 shadow-md w-[90vw]"
+                        >
+                            <p className="mb-3 text-center">{quiz.question}</p>
+                            <div className="flex flex-wrap justify-center gap-3">
+                                {quiz.all_answers.map(
+                                    (answerObj, answerIndex) => (
+                                        <button
+                                            key={answerIndex}
+                                            type="button"
+                                            className={`px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-md shadow ${
+                                                userAnswers[index] ===
+                                                answerObj.answer
+                                                    ? "ring-4 ring-purple-300"
+                                                    : ""
+                                            }`}
+                                            onClick={() =>
+                                                handleAnswerSelect(
+                                                    index,
+                                                    answerObj.answer
+                                                )
+                                            }
+                                        >
+                                            {answerObj.answer}
+                                        </button>
+                                    )
+                                )}
+                            </div>
                         </div>
-                    </form>
-                ))
+                    ))}
+                    <button
+                        onClick={handleSubmit}
+                        className="bg-slate-200 text-purple-800 px-3 py-1 rounded font-bold hover:text-slate-200 hover:bg-purple-600 transition delay-75 ease-out mx-auto shadow-xl block"
+                    >
+                        Submit
+                    </button>
+                </div>
             )}
         </div>
     );
